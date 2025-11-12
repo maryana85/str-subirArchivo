@@ -54,10 +54,9 @@ def detectarFormatoFecha(nombreArchivo: str) -> str:
 def desencurtir() -> tuple:
     """Desencurte los archivos pkl que contienen los dataframes que están en pandas y los transforma un un dataframe de pyspark"""
 
-    archivos = ['clusters_df.pkl', 
-                'rutas_df.pkl', 
-                'pesos_codigosM_df.pkl', 
-                'hist_exp_df.pkl']
+    archivos = [
+                'pesos_codigosM_df.pkl'
+                ]
     
     listaFinal = []
 
@@ -108,20 +107,20 @@ def unionFinal(entregas_df) -> DataFrame:
     """los catálogos se jalan usando la función de desencurtir"""
     # lista_CPs = entregas_df.select('Código_postal').rdd.flatMap(lambda x: x).collect()
 
-    clusters_df, rutas_df, pesos_codigosM_df, hist_exp_df = desencurtir()
+    pesos_codigosM_df = desencurtir()
 
     print("\n",type(pesos_codigosM_df), "\n")
     
     
     final_df = entregas_df.join(pesos_codigosM_df, ["codigo"], "left") \
-                        .join(rutas_df, ["zona"], "left") \
-                        .join(clusters_df, ["Código_postal"], "left").fillna("N/A", subset=["Cluster"]) \
-                        .join(hist_exp_df, ["Código_postal"], "left") \
-                        .withColumn("COBERTURA_CE",
-                            when(col("IS_RAC") == 0, lit("NORAC"))
-                            .when((col("has_hist_ce").isNotNull()) | (col("has_cluster_ce").isNotNull()), lit("CON_COBERTURA"))
-                            .otherwise(lit("SIN_COBERTURA"))
-                        ) \
+                        # .join(rutas_df, ["zona"], "left") \
+                        # .join(clusters_df, ["Código_postal"], "left").fillna("N/A", subset=["Cluster"]) \
+                        # .join(hist_exp_df, ["Código_postal"], "left") \
+                        # .withColumn("COBERTURA_CE",
+                            # when(col("IS_RAC") == 0, lit("NORAC"))
+                            # .when((col("has_hist_ce").isNotNull()) | (col("has_cluster_ce").isNotNull()), lit("CON_COBERTURA"))
+                            # .otherwise(lit("SIN_COBERTURA"))
+                        # ) \
                         # .select("ID_RUTA", "Código_postal", "folio", "fecha", "Seccion", "Tipo_Art", "Cluster", "COBERTURA_CE", "IS_RAC")
 
     print("\nLa unión final ha finalizado\n")
@@ -162,4 +161,5 @@ if __name__ == "__main__":
     # unionFinal(df)
 
     # escrituraFinal(unionFinal(df))
+
 

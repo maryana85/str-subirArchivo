@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from io import BytesIO
 from datetime import date
-from funciones import histMuebles, unionFinal, detectarFormatoFecha
+from utils.funciones import histMuebles, unionFinal, detectarFormatoFecha
 
 # Expected columns
 EXPECTED_COLUMNS = {"fecha",
@@ -102,3 +102,4 @@ else:
     st.info("Por favor carga un archivo CSV con las siguientes columnas: fecha, Tipo_Art, ubicacionactual, fechaenrutada, jaula,ciudad, ruta, zona")
 
 # streamlit run subirArchivo.py
+

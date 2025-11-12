@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from io import BytesIO
-from utils.funcionesV3 import histMuebles, unionFinal, detectarFormatoFecha
+from utils.funcionesV3 import histMuebles, unionFinal, detectarFormatoFecha, pivoteVal, pivoteVal_2
 
 
 # ✅ Expected columns (in any order)
@@ -18,7 +18,8 @@ EXPECTED_COLUMNS = {
 }
 
 # App title
-st.title("🚚 Subidor de CSV/XLSX con Validación de Esquema")
+# 🚚
+st.title("📋 Herramienta para procesar el archivo de Históricos Muebles (Entregas)")
 
 # File uploader
 uploaded_file = st.file_uploader("Sube un archivo CSV o Excel", type=["csv", "xlsx"])
@@ -40,8 +41,7 @@ if uploaded_file is not None:
             st.stop()
             df = None
 
-        formfecha = detectarFormatoFecha(df)
-        st.write(formfecha)
+        formfecha = detectarFormatoFecha(df)        
         # df_proc = histMuebles(df, formfecha)
         df_proc = unionFinal(df, formfecha)
 
@@ -54,18 +54,60 @@ if uploaded_file is not None:
         if not missing_columns:
             st.success(f"✅ '{filename}' cargado correctamente con el esquema esperado.")
             st.write("**Columnas encontradas:**", list(df.columns))
-            st.dataframe(df.head())
+            # st.dataframe(df.head())
 
             if extra_columns:
                 st.warning(f"⚠️ Columnas adicionales encontradas: {list(extra_columns)}")
 
             # --- Example processing ---
-            st.info("📊 Procesamiento de ejemplo: conteo de filas y columnas.")
-            st.write(f"Total de filas: {len(df)}")
-            st.write(f"Total de columnas: {len(df.columns)}")
+            st.info("📊 El Procesamiento ha terminado.")
+            # st.write(f"Total de filas: {len(df)}")
+            # st.write(f"Total de columnas: {len(df.columns)}")
 
             st.divider()
+            st.markdown("<h3 style='text-align: center;'>Tabla Final</h3>", unsafe_allow_html=True)
+
             st.dataframe(df_proc)
+            st.divider()
+            # st.header("Tablas Pivote")
+            st.write()
+            st.write()
+            st.markdown("<h3 style='text-align: center;'>Tablas Pivote</h3>", unsafe_allow_html=True)
+            
+
+            col1, col2 = st.columns(2)
+            with col1:
+                data = [["IS_RAC", "1"],
+                        ["COBERTURA_CE", "CON_COBERTURA"]]
+                tabla = pd.DataFrame(data, columns=["1", "2"]) \
+                        .style.hide_columns() \
+                        .hide(axis="index") \
+                        .set_properties(**{'background-color': "#f0f5ff", 'color': 'black'}) \
+                        .set_properties(**{'width': '200px'})
+
+                # st.table(tabla.style.hide_columns())
+                st.write(tabla.to_html(), unsafe_allow_html=True)
+
+                st.selectbox("", options = df_proc['fechaenrutada'].unique().tolist(),  key="ID1")
+
+                st.dataframe(pivoteVal(df_proc))
+
+            with col2:
+                data = [["IS_RAC", "1"],
+                        ["COBERTURA_CE", "(Multiple Items)"]]
+                tabla = pd.DataFrame(data, columns=["1", "2"]) \
+                        .style.hide_columns() \
+                        .hide(axis="index") \
+                        .set_properties(**{'background-color': "#f0f5ff", 'color': 'black'}) \
+                        .set_properties(**{'width': '200px'})
+
+                # st.table(tabla.style.hide_columns())
+                st.write(tabla.to_html(), unsafe_allow_html=True)
+
+                st.selectbox("", options = df_proc['fechaenrutada'].unique().tolist(), key="ID2")
+
+                st.dataframe(pivoteVal_2(df_proc))
+            
             # st.write(df_proc)
 
             # Crear resultado simple (puedes cambiarlo a una operación más compleja)
@@ -80,6 +122,7 @@ if uploaded_file is not None:
             buffer.seek(0)
 
             # Botón de descarga
+            st.write()
             st.download_button(
                 label="⬇️ Descargar archivo de resultado (resultado.csv)",
                 data=buffer,
@@ -101,4 +144,4 @@ else:
     st.code("\n".join(EXPECTED_COLUMNS))
 
 
-# streamlit run mainGPTv2.py
+# streamlit run mainGPTv3.py

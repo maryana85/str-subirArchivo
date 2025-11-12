@@ -78,7 +78,8 @@ def histMuebles(df, formatoFecha: str) -> DataFrame:
     pre_df_ent['Fecha_New'] = pd.to_datetime(df['fecha'], format= formatoFecha)
     pre_df_ent['Fecha_en_Ruta_New'] = pd.to_datetime(df['fechaenrutada'], format= formatoFecha)
     pre_df_ent.rename(columns={'Tipo_Art': 'tipo'}, inplace=True)    
-    pre_df_ent['IS_RAC'] = pre_df_ent.apply(_isRACFun, axis=1)
+    pre_df_ent["IS_RAC"] = df["jaula"].astype(str).str.contains("R").astype(int)
+    # pre_df_ent['IS_RAC'] = pre_df_ent.apply(_isRACFun, axis=1) 
     pre_df_ent['ID_RUTA'] = pre_df_ent['ciudad'].astype(str) + '-' + pre_df_ent['ruta'].astype(str) + '-' + pre_df_ent['jaula'].astype(str)
 
     todas = pre_df_ent.columns.tolist()
@@ -96,7 +97,7 @@ def histMuebles(df, formatoFecha: str) -> DataFrame:
     return  entregas_df      # Dataframe
 
 
-def _cobertura(row):       
+def _coberturaFunc(row):       
         if row["IS_RAC"] == 0:
             return "NORAC"
         elif pd.notna(row["has_hist_ce"]) or pd.notna(row["has_cluster_ce"]):
@@ -134,10 +135,32 @@ def unionFinal(df, formatoFecha) -> DataFrame:
     
 
     final_df["Cluster"].fillna("N/A", inplace= True)
-    final_df["COBERTURA_CE"] = final_df.apply(_cobertura, axis=1)
+    final_df["COBERTURA_CE"] = final_df.apply(_coberturaFunc, axis=1)
     
     print("\nLa unión final ha finalizado\n")
     return final_df
+
+def pivoteVal(df):
+
+    filter_df = df[ ( df['IS_RAC'] == 1 )  &  (df['COBERTURA_CE'] == "CON_COBERTURA") ]
+
+    num_rows = len(filter_df)
+
+    filter_df["Cluster"]
+    pivote_df = filter_df.groupby('Cluster')['folio'].count()    
+
+    return pivote_df
+
+def pivoteVal_2(df):
+
+    filter_df = df[ ( df['IS_RAC'] == 1 ) ]
+
+    num_rows = len(filter_df)
+
+    filter_df["Cluster"]
+    pivote_df = filter_df.groupby('Cluster')['folio'].count()    
+
+    return pivote_df
 
 # (8) Escritura final del DataFrame
 def _escrituraFinal(final_df):
@@ -153,6 +176,8 @@ def _escrituraFinal(final_df):
 
 
     return
+
+
 
 
 """este módulo contiene las funciones que habrán de ser usadas en el script principal"""

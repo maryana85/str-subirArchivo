@@ -46,8 +46,10 @@ def _isRACFun(row):
 def _desencurtir() -> tuple:
     """Desencurte los archivos pkl que contienen los dataframes que están en pandas y los transforma un un dataframe de pyspark"""    
     
-    archivos = [
-                'pesos_codigosM_df.pkl', 
+    archivos = [ "clusters_df.pkl", 
+                "rutas_df.pkl", 
+                "pesos_codigosM_df.pkl", 
+                "hist_exp_df.pkl"                
                ]
     
     listaFinal = []
@@ -93,6 +95,15 @@ def histMuebles(df, formatoFecha: str) -> DataFrame:
 
     return  entregas_df      # Dataframe
 
+
+def _cobertura(row):       
+        if row["IS_RAC"] == 0:
+            return "NORAC"
+        elif pd.notna(row["has_hist_ce"]) or pd.notna(row["has_cluster_ce"]):
+            return "CON_COBERTURA"
+        else:
+            return "SIN_COBERTURA"
+
 # (7) Unión de los 5 dataframes para poder asignarles un clúster
 def unionFinal(df, formatoFecha) -> DataFrame:
     """los catálogos se jalan usando la función de desencurtir"""
@@ -101,18 +112,29 @@ def unionFinal(df, formatoFecha) -> DataFrame:
     entregas_df = histMuebles(df, formatoFecha)       # 1
     print("\n\nYA PROCESO ENTREGAS MUEBLES!!!!\n\n")
 
-    algo = list(set(entregas_df['codigo'].str.len().tolist()))
-    print("Lista de longitudes en entregas: ", algo)
     
+    # pesos_codigosM_df = _desencurtir()[0]  # 2
+    clusters_df, rutas_df, pesos_codigosM_df, hist_exp_df = _desencurtir()
 
-    pesos_codigosM_df = _desencurtir()[0]  # 2
+    rutas_df['zona'] = rutas_df['zona'].astype("int64")
 
-    otro = list(set(pesos_codigosM_df['codigo'].str.len().tolist()))
-    print("Lista de longitudes en el otro: ", otro)
+    print(clusters_df.dtypes)    
+
+    print()
+
+    # otro = list(set(pesos_codigosM_df['codigo'].str.len().tolist()))
+    # print("Lista de longitudes en el otro: ", otro)
 
         
     # final_df = pd.merge(entregas_df, pesos_codigosM_df, on='codigo', how='left')
-    final_df = entregas_df.merge(pesos_codigosM_df, on='codigo', how='left')
+    final_df = entregas_df.merge(pesos_codigosM_df, on='codigo', how='left') \
+                        .merge(rutas_df, on="zona", how="left") \
+                        .merge(clusters_df, on= "Código_postal", how = 'left') \
+                        .merge(hist_exp_df, on = "Código_postal", how= "left") 
+    
+
+    final_df["Cluster"].fillna("N/A", inplace= True)
+    final_df["COBERTURA_CE"] = final_df.apply(_cobertura, axis=1)
     
     print("\nLa unión final ha finalizado\n")
     return final_df

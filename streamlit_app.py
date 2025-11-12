@@ -80,7 +80,7 @@ if uploaded_file is not None:
                 data = [["IS_RAC", "1"],
                         ["COBERTURA_CE", "CON_COBERTURA"]]
                 tabla = pd.DataFrame(data, columns=["1", "2"]) \
-                        .style.hide_columns() \
+                        .style.hide(axis='columns') \
                         .hide(axis="index") \
                         .set_properties(**{'background-color': "#f0f5ff", 'color': 'black'}) \
                         .set_properties(**{'width': '200px'})
@@ -96,7 +96,7 @@ if uploaded_file is not None:
                 data = [["IS_RAC", "1"],
                         ["COBERTURA_CE", "(Multiple Items)"]]
                 tabla = pd.DataFrame(data, columns=["1", "2"]) \
-                        .style.hide_columns() \
+                        .style.hide(axis='columns') \
                         .hide(axis="index") \
                         .set_properties(**{'background-color': "#f0f5ff", 'color': 'black'}) \
                         .set_properties(**{'width': '200px'})
@@ -145,3 +145,4 @@ else:
 
 
 # streamlit run mainGPTv3.py
+

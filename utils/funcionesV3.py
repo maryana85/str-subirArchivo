@@ -140,24 +140,39 @@ def unionFinal(df, formatoFecha) -> DataFrame:
     print("\nLa unión final ha finalizado\n")
     return final_df
 
-def pivoteVal(df):
+def pivoteVal(df, fecha = None):
 
-    filter_df = df[ ( df['IS_RAC'] == 1 )  &  (df['COBERTURA_CE'] == "CON_COBERTURA") ]
+    if fecha is not None:
+        filter_df = df[ ( df['IS_RAC'] == 1 )  &  
+                       (df['COBERTURA_CE'] == "CON_COBERTURA") &
+                       (df['fechaenrutada'] == fecha)
+                       ]
 
-    num_rows = len(filter_df)
+    else:
+        filter_df = df[ ( df['IS_RAC'] == 1 )  &  (df['COBERTURA_CE'] == "CON_COBERTURA") ]
 
-    filter_df["Cluster"]
-    pivote_df = filter_df.groupby('Cluster')['folio'].count()    
+        # num_rows = len(filter_df)
+        # filter_df["Cluster"]
+    
+    pivote_df = filter_df.groupby('Cluster')['folio'].count()   
+
 
     return pivote_df
 
-def pivoteVal_2(df):
+def pivoteVal_2(df, fecha = None):
 
-    filter_df = df[ ( df['IS_RAC'] == 1 ) ]
+    if fecha is not None:
+        filter_df = df[ 
+                        ( df['IS_RAC'] == 1 ) &
+                        (df['fechaenrutada'] == fecha)
+                       ]
 
-    num_rows = len(filter_df)
+    else:
+        filter_df = df[ ( df['IS_RAC'] == 1 ) ]
+        # num_rows = len(filter_df)
+        # filter_df["Cluster"]
 
-    filter_df["Cluster"]
+
     pivote_df = filter_df.groupby('Cluster')['folio'].count()    
 
     return pivote_df

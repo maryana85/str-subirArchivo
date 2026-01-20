@@ -6,6 +6,7 @@ certifi==2025.10.5
 charset-normalizer==3.4.4
 click==8.3.0
 colorama==0.4.6
+et_xmlfile==2.0.0
 gitdb==4.0.12
 GitPython==3.1.45
 idna==3.11
@@ -19,6 +20,7 @@ openpyxl==3.1.5
 packaging==25.0
 pandas==2.3.3
 pillow==12.0.0
+plotly==6.5.2
 protobuf==6.33.0
 py4j==0.10.9.9
 pyarrow==21.0.0
@@ -31,7 +33,7 @@ requests==2.32.5
 rpds-py==0.28.0
 six==1.17.0
 smmap==5.0.2
-streamlit==1.51.0
+streamlit==1.53.0
 tenacity==9.1.2
 toml==0.10.2
 tornado==6.5.2
@@ -39,4 +41,3 @@ typing_extensions==4.15.0
 tzdata==2025.2
 urllib3==2.5.0
 watchdog==6.0.0
-

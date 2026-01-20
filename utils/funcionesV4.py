@@ -191,7 +191,7 @@ def unionFinal(df, fecha_inicial, fecha_final, selected_ubicaciones) -> DataFram
                         # .merge(cedis_df, on= 'ubicacionactual', how= 'left')
     
     
-    final_df["IS_RAC"] = final_df.apply(_ISRACFunc, axis= 1)    # ← nueva función!!!, el pedo está aquí
+    final_df["IS_RAC"] = final_df.apply(_ISRACFunc, axis= 1)    
 
     final_df["COBERTURA_CE"] = final_df.apply(_coberturaFunc, axis=1)    
 
@@ -558,6 +558,7 @@ if __name__ == "__main__":
     
     
     print(df.head())
+
 
 
 

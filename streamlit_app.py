@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
+import plotly.express as px
 from io import BytesIO
-from utils.funcionesV4 import histMuebles, unionFinal, detectarFormatoFecha, pivoteVal, pivoteVal_2, leerArchivo, nombreCEDIS, resumenClusters
+from utils.funcionesV4 import histMuebles, unionFinal, detectarFormatoFecha, pivoteVal, pivoteVal_2, leerArchivo, nombreCEDIS, tablasAggregadas, saveResultMem, segundoFiltrado, filtroVarios
 
 
 # Esta es una versión de prueba, con las modificaciones de la versión del proceso en dónde ya se incluye la parte de centros de nómina y los cambios a los catálogos iniciales (rutas) ...
@@ -13,6 +14,50 @@ RED = "\x1b[31m"
 GREEN = "\x1b[32m"
 CYAN = "\x1b[36m"
 RESET = "\x1b[0m" # Resets the color and style
+
+class TablaFinal:
+    """create a python singleton class that auto run 1 method. This method will define one of its attributes:
+    """
+    _instance = None
+    _initialized = False
+
+    def __new__(cls, df):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self, df):
+        
+        if self.__class__._initialized:
+            return
+        # ATRIBUTOS DE INSTANCIA
+        # self.df     →  
+        # self.totalFilas  
+        
+        # ATRIBUTOS DE INSTANCIA
+        self.df = df        # → es el df ya procesado!!!
+        # Auto-Run methods
+        self._TotalFilas()
+        self._EntregasRAC()
+        self._EntregasNoRAC()
+        self.prtjRAC = f"{(self.entregasRAC / self.totalFilas):.0%}"
+        self.prtjNoRAC = f"{(self.entregasNoRAC / self.totalFilas):.0%}"
+
+        
+
+
+
+        self.__class__._initialized = True
+
+    def _TotalFilas(self):
+        self.totalFilas = len(self.df)
+
+    def _EntregasRAC(self):
+        self.entregasRAC = len( self.df[ self.df['IS_RAC'] == 1 ] )
+
+    def _EntregasNoRAC(self):
+        self.entregasNoRAC = len( self.df[ self.df['IS_RAC'] == 0 ] )
+        
 
 
 # ✅ Expected columns (in any order)
@@ -27,11 +72,12 @@ EXPECTED_COLUMNS = {
     "zona"
 }
 
-def cargarArchivo(nombre: str) -> pd.DataFrame:
-    return df
+
+# ---------------------- Streamlit UI -----------------------
 
 # App title
 # 🚚
+st.set_page_config(page_title="Herramienta Coppel", page_icon="📈", layout="wide")
 st.title("📋 Herramienta para procesar el archivo de Históricos Muebles (Entregas)")
 
 
@@ -155,6 +201,8 @@ with tab1:
 # ---------------------- TAB 2 ----------------------
 with tab2:
 
+    # with st.container(width= "content")
+
     # File uploader
     uploaded_file = st.file_uploader("Sube un archivo CSV o Excel", type=["csv", "xlsx"])    
 
@@ -165,7 +213,6 @@ with tab2:
 
         try:            
             df = leerArchivo(uploaded_file)
-
             
             # --- Read depending on extension ---
             # if file_extension == ".csv":
@@ -237,7 +284,7 @@ with tab2:
                 # DATE FILTERS
                 # ---------------------------------
                 fecha_inicial = st.sidebar.date_input(
-                    "Fecha Inicial",
+                    "Fecha Enrutada Inicial",
                     value=st.session_state.fecha_inicial,
                     min_value=min_date,
                     max_value=max_date,
@@ -246,7 +293,7 @@ with tab2:
                 )
 
                 fecha_final = st.sidebar.date_input(
-                    "Fecha Final",
+                    "Fecha Enrutada Final",
                     value=st.session_state.fecha_final,
                     min_value=min_date,
                     max_value=max_date,
@@ -295,7 +342,10 @@ with tab2:
 
                 # Voy a mandar todos los filtros al módulo de funciones para que ahí se haga todo eso
                 
-                df_proc = unionFinal(filtered_df, fecha_inicial, fecha_final, selected_ubicaciones)  # ← aquí se procesa el dataframe final            
+                df_proc = unionFinal(filtered_df, fecha_inicial, fecha_final, selected_ubicaciones)  # ← aquí se procesa el dataframe final
+
+                # AQUÍ inicializo mi objeto
+                t = TablaFinal(df_proc)
                 # -----------------------------------------------
 
 
@@ -308,101 +358,240 @@ with tab2:
                 # st.write(f"Total de columnas: {len(df.columns)}")
 
                 st.divider()
-                st.markdown("<h3 style='text-align: center;'>Tabla Final</h3>", unsafe_allow_html=True)
 
-                st.dataframe(df_proc,
+                with st.expander("Indicadores"):
+                    saule1, saule2, saule3 = st.columns(3) 
+
+                    with saule1:
+                        st.metric(label= "Total Entregas", value=  f'{t.totalFilas:,}' )
+
+                    with saule2:
+                        st.metric(label= "Entregas RAC", value= f'{t.entregasRAC:,}' ,
+                                  delta= t.prtjRAC,
+                                  delta_arrow = "off",
+                                  delta_color = "off")
+
+                    with saule3:
+                        st.metric(label= "Entregas No RAC", value= f'{t.entregasNoRAC:,}', 
+                                  delta= t.prtjNoRAC,
+                                  delta_arrow = "off",
+                                  delta_color = "off"
+                                  )
+                    
+
+                st.markdown("<h3 style='text-align: center;'>Tabla Final</h3>", unsafe_allow_html=True)
+                
+                st.dataframe(df_proc,                             
                             column_config = {'fechaenrutada': st.column_config.DateColumn( format="DD-MM-YYYY"),
                                              'fecha': st.column_config.DateColumn( format="DD-MM-YYYY"),
                                              'Fecha_New': st.column_config.DateColumn( format="DD-MM-YYYY") ,
                                              'Fecha_en_Ruta_New': st.column_config.DateColumn( format="DD-MM-YYYY")                       
                             },
-                            column_order=['tipo', 'folio', 'fecha', 'codigo', 'zona', 'jaula', 'ruta', 'fechaenrutada', 'ubicacionactual', 'NombreCEDIS', 'Fecha_New', 'Fecha_en_Ruta_New', 'IS_RAC', 'ID_RUTA', 'DCF', 'Seccion', 'Código_postal', 'Cluster', 'has_cluster_ce', 'has_hist_ce', 'COBERTURA_CE']
+                            column_order=['tipo', 'folio', 'fecha', 'codigo', "articulo", "marca", "modelo", 'zona', 'jaula', 'ruta', 'fechaenrutada', 'ubicacionactual', 'NombreCEDIS', 'Fecha_New', 'Fecha_en_Ruta_New', 'IS_RAC', 'ID_RUTA', 'DCF', 'Seccion', 'Código_postal', 'Cluster', 'has_cluster_ce', 'has_hist_ce', 'COBERTURA_CE']
                             )
-                st.write(f"Total filas = **{len(df_proc)}**")
+                
+                columnas = st.columns(2)
+                with columnas[0]:
+                    st.write(f"Total filas = **{len(df_proc)}**")                
+
+                # Botón de descarga
+                with columnas[1]:
+                    
+                    with st.container(horizontal=True, horizontal_alignment="right"):
+                        st.download_button(
+                            label="⬇️ Descargar archivo de resultado (resultado.csv)",
+                            data= saveResultMem(df_proc),
+                            file_name="resultado.csv",
+                            mime="text/csv",
+                        )
+
+                
                 st.divider()
 
                 st.subheader("Filtros para las Tablas Pivote")
-                colin1, colin2 = st.columns(2)
+                colin1, colin2, colin3 = st.columns([3, 2, 3], gap = "medium")
 
                 with colin1:
-                    st.selectbox("Clusters", options = df_proc['Cluster'].unique().tolist(),  key="ID4")
+                    # ----------------- 1° Filtro ---------------------
+                    cedis_selected = st.selectbox("CEDIS", options =  ["Todos"] + selected_ubicaciones,  key="ID5") # opción de todas
+    
+                  
+                    # opciones_cluster= sorted(df_proc[df_proc["NombreCEDIS"] == cedis_selected]["Cluster"].unique().tolist())
+
+                    if cedis_selected == "Todos":    
+                        opciones_cluster = sorted(
+                            df_proc[
+                                (df_proc["NombreCEDIS"].isin(selected_ubicaciones)) &
+                                (df_proc['fechaenrutada'].dt.date >= fecha_inicial) & 
+                                (df_proc['fechaenrutada'].dt.date <= fecha_final)
+                                ]["Cluster"].unique().tolist())
+
+                    else:                        
+                        opciones_cluster = sorted(
+                            df_proc[
+                                (df_proc["NombreCEDIS"] == cedis_selected) &
+                                (df_proc['fechaenrutada'].dt.date >= fecha_inicial) & 
+                                (df_proc['fechaenrutada'].dt.date <= fecha_final)
+                                ]["Cluster"].unique().tolist())
+                        
+                    # df_proc ya está filtrado con los filtros primarios, hay que quitar eso ↑
+
+                    # (2°) Filtro 
+                    cluster_selected = st.selectbox("Clusters", options = ["Todos"] + opciones_cluster,  key="ID4") # en este filtro que sólo se pueda escoger 1 cluster 
+                    
+                    opciones_fecha = filtroVarios(df_proc, cedis_selected, cluster_selected, tipo = "fecha")
+
+                    # (3°) filtro
+                    fecha_selected = st.selectbox("Fecha Enrutada", options = ["Todas"] +       opciones_fecha ,  key="ID6") # fecha en específico o todas
+
+                    opciones_jaula = filtroVarios(df_proc, cedis_selected, cluster_selected, fecha_selected, tipo = "jaula")
+
+
+                    # (4°) filtro
+                    jaula_selected = st.selectbox("Jaula", options = ["Todas"] + opciones_jaula,  key="ID7") 
+
+                    opciones_RAC = filtroVarios(df_proc, cedis_selected, cluster_selected, fecha_selected, jaula_selected, tipo = "rac")
+
+                    
+                    # (5°) filtro
+                    rac_selected = st.selectbox("RAC", options = ["Todas"] + opciones_RAC ,  key="ID8")
+                    
+                    opciones_Cobertura = filtroVarios(df_proc, cedis_selected, cluster_selected, fecha_selected, jaula_selected, str(rac_selected), tipo = "cobertura")
+
+                    # (6°) filtro
+                    # cobertura_selected = st.selectbox("Cobertura", options = ["Todas"] + df_proc['COBERTURA_CE'].unique().tolist(),  key="ID9")
+
+                    cobertura_selected = st.selectbox("Cobertura", options = ["Todas"] + opciones_Cobertura,  key="ID9")
+
+                with colin3:
+                    st.write("")
+                    # st.write(cedis_selected)
+                    # st.write(cluster_selected)
+                    # st.write(fecha_selected)
+                    # st.write(jaula_selected)
+                    # st.write(rac_selected)
+                    # st.write(cobertura_selected)
+
+
+                #---------------------------------------------------
+                
+                df_proc_filt = segundoFiltrado(df_proc, cedis_selected, cluster_selected, fecha_selected, jaula_selected, rac_selected, cobertura_selected)           
+                
 
                 # Aquí poner la tabla pivote
-                st.dataframe(resumenClusters(df_proc))
+                aggCluster_df, aggJaula_df = tablasAggregadas(df_proc_filt)
+
+                st.space("small")
+                with st.container(border=True, width = 1500):
+
+                    columnas = st.columns([3, 5])
+
+                    with columnas[0]:                
+                        st.dataframe(aggCluster_df,
+                                    width = 450)
+                        with st.container(horizontal= True, horizontal_alignment="right"):                     
+                            st.download_button(
+                                label="⬇️ Descargar tabla de Resultados 1 (tabla_Clusters_agg.csv)",
+                                data= saveResultMem(aggCluster_df),
+                                file_name="tabla_Clusters_agg.csv",
+                                mime="text/csv",
+                            )
+
+                    with columnas[1]:
+                        fig_C = px.pie(aggCluster_df, values= 'Total', names='Cluster',
+                                        title=f'Gráfico × Clusters',
+                                        height=450, width=300)
+                        fig_C.update_layout(margin=dict(l=20, r=20, t=30, b=0),)
+                        st.plotly_chart(fig_C, use_container_width=True)
+
+                st.space("small")
+
+                with st.container(border=True):
+
+                    columnas = st.columns([3, 5])
+
+                    with columnas[0]:
+                        st.dataframe(aggJaula_df,
+                                     width = 450)
+                        with st.container(horizontal= True, horizontal_alignment="right"):                     
+                            st.download_button(
+                                label="⬇️ Descargar tabla de Resultados 2 (tabla_Jaula_agg.csv)",
+                                data= saveResultMem(aggJaula_df),
+                                file_name="tabla_Jaula_agg.csv",
+                                mime="text/csv",
+                            )
+                    with columnas[1]:
+                        # fig_J = px.pie(aggJaula_df, values= 'Total', names='Jaula',
+                        #                 title=f'Gráfico × Jaulas',
+                        #                 height=450, width=300)
+
+                        fig_J = px.bar(aggJaula_df, y = 'Total', x ='Jaula',
+                                        title=f'Gráfico × Jaulas',
+                                        height=450, width=300, ) # color = 'Jaula'
+                        fig_J.update_layout(margin=dict(l=20, r=20, t=30, b=0),)
+                        st.plotly_chart(fig_J, use_container_width=True)
+
+                        # st.bar_chart(aggJaula_df, x = 'Jaula', y = 'Total', color=["#0000FF"], height=450, width=300)
 
 
-                st.divider()
+                # st.divider()
                 # st.header("Tablas Pivote")
                 st.write()
                 st.write()
-                st.markdown("<h3 style='text-align: center;'>Tablas Pivote</h3>", unsafe_allow_html=True)
+                # st.markdown("<h3 style='text-align: center;'>Tablas Pivote</h3>", unsafe_allow_html=True)
                 
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    data = [["IS_RAC", "1"],
-                            ["COBERTURA_CE", "CON_COBERTURA"]]
-                    tabla = pd.DataFrame(data, columns=["1", "2"]) \
-                            .style.hide(axis='columns') \
-                            .hide(axis="index") \
-                            .set_properties(**{'background-color': "#f0f5ff", 'color': 'black'}) \
-                            .set_properties(**{'width': '200px'})
+                # col1, col2 = st.columns(2)
+                # with col1:
+                #     data = [["IS_RAC", "1"],
+                #             ["COBERTURA_CE", "CON_COBERTURA"]]
+                #     tabla = pd.DataFrame(data, columns=["1", "2"]) \
+                #             .style.hide(axis='columns') \
+                #             .hide(axis="index") \
+                #             .set_properties(**{'background-color': "#f0f5ff", 'color': 'black'}) \
+                #             .set_properties(**{'width': '200px'})
 
-                    # st.table(tabla.style.hide_columns())
-                    st.write(tabla.to_html(), unsafe_allow_html=True)
+                #     # st.table(tabla.style.hide_columns())
+                #     st.write(tabla.to_html(), unsafe_allow_html=True)
 
-                    pivot_df = df_proc[ ( df_proc['IS_RAC'] == 1 )  &  (df_proc['COBERTURA_CE'] == "CON_COBERTURA") ]
+                #     pivot_df = df_proc[ ( df_proc['IS_RAC'] == 1 )  &  (df_proc['COBERTURA_CE'] == "CON_COBERTURA") ]
                     
 
-                    etwas =  ['Todas las fechas'] + [d.astype('datetime64[D]').item() for d in pivot_df['fechaenrutada'].unique() ]
+                #     etwas =  ['Todas las fechas'] + [d.astype('datetime64[D]').item() for d in pivot_df['fechaenrutada'].unique() ]
 
-                    print(GREEN + f"\n\tEsto es etwas: {etwas}"   + RESET)
+                #     # print(GREEN + f"\n\tEsto es etwas: {etwas}"   + RESET)
 
-                    opc_fecha = st.selectbox("Fecha en Rutada", options = etwas,  key="ID1") 
+                #     opc_fecha = st.selectbox("Fecha en Rutada", options = etwas,  key="ID1") 
 
-                    st.dataframe(pivoteVal(df_proc, opc_fecha) )
+                #     st.dataframe(pivoteVal(df_proc, opc_fecha) )
 
-                with col2:
-                    data = [["IS_RAC", "1"],
-                            ["COBERTURA_CE", "(Multiple Items)"]]
-                    tabla = pd.DataFrame(data, columns=["1", "2"]) \
-                            .style.hide(axis='columns') \
-                            .hide(axis="index") \
-                            .set_properties(**{'background-color': "#f0f5ff", 'color': 'black'}) \
-                            .set_properties(**{'width': '200px'})
+                # with col2:
+                #     data = [["IS_RAC", "1"],
+                #             ["COBERTURA_CE", "(Multiple Items)"]]
+                #     tabla = pd.DataFrame(data, columns=["1", "2"]) \
+                #             .style.hide(axis='columns') \
+                #             .hide(axis="index") \
+                #             .set_properties(**{'background-color': "#f0f5ff", 'color': 'black'}) \
+                #             .set_properties(**{'width': '200px'})
 
-                    # st.table(tabla.style.hide_columns())
-                    st.write(tabla.to_html(), unsafe_allow_html=True)
+                #     # st.table(tabla.style.hide_columns())
+                #     st.write(tabla.to_html(), unsafe_allow_html=True)
 
-                    pivot2_df = df_proc[ ( df_proc['IS_RAC'] == 1 ) ]
+                #     pivot2_df = df_proc[ ( df_proc['IS_RAC'] == 1 ) ]
 
-                    etwas2 = ['Todas las fechas'] + [ d.astype('datetime64[D]').item() for d in pivot2_df['fechaenrutada'].unique() ] 
+                #     etwas2 = ['Todas las fechas'] + [ d.astype('datetime64[D]').item() for d in pivot2_df['fechaenrutada'].unique() ] 
 
-                    opc_fecha2 = st.selectbox("Fecha en Rutada", options = etwas2, key="ID2")
+                #     opc_fecha2 = st.selectbox("Fecha en Rutada", options = etwas2, key="ID2")
 
-                    st.dataframe(pivoteVal_2(df_proc, opc_fecha2))
+                #     st.dataframe(pivoteVal_2(df_proc, opc_fecha2))
                 
-                # st.write(df_proc)
+                # # st.write(df_proc)
 
-                # Crear resultado simple (puedes cambiarlo a una operación más compleja)
-                result_df = pd.DataFrame({
-                    "Total_Filas": [len(df)],
-                    "Total_Columnas": [len(df.columns)]
-                })
-
-                # Guardar resultado en memoria
-                buffer = BytesIO()
-                result_df.to_csv(buffer, index=False)
-                buffer.seek(0)
-
-                # Botón de descarga
-                st.write()
-                st.download_button(
-                    label="⬇️ Descargar archivo de resultado (resultado.csv)",
-                    data=buffer,
-                    file_name="resultado.csv",
-                    mime="text/csv",
-                )
+                # # Crear resultado simple (puedes cambiarlo a una operación más compleja)
+                # result_df = pd.DataFrame({
+                #     "Total_Filas": [len(df)],
+                #     "Total_Columnas": [len(df.columns)]
+                # })                
 
             else:
                 st.error("❌ ¡Esquema inválido detectado!")

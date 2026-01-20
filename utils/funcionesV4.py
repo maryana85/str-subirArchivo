@@ -10,6 +10,8 @@ import streamlit as st
 import numpy as np
 import csv
 import io
+from io import BytesIO
+from datetime import datetime
 
 """Esta versión es sin SPARK y es la versión a Enero del 2026, a la par del archivo Entregas Muebles - cleaning v4.ipynb"""
 
@@ -75,7 +77,7 @@ def histMuebles(df, fecha_inicial: date, fecha_final: date, selected_ubicaciones
         selected_ubicaciones: lista de strings        
     """  
 
-    columnasMantener = ["fecha","tipo", "ubicacionactual", "fechaenrutada", "jaula", "ruta", "zona",  "folio", "codigo",'Fecha_New', 'Fecha_en_Ruta_New', 'IS_RAC', 'ID_RUTA', "num_centronomina", "IS_RAC_Izt", "Cluster"] # "articulo", "marca", "modelo", "cantidad",  "mododeentrega", "cliente", "ciudad", "tienda"
+    columnasMantener = ["fecha","tipo", "ubicacionactual", "fechaenrutada", "jaula", "ruta", "zona",  "folio", "codigo",'Fecha_New', 'Fecha_en_Ruta_New', 'IS_RAC', 'ID_RUTA', "num_centronomina", "IS_RAC_Izt", "Cluster", "articulo", "marca", "modelo"] # "cantidad",  "mododeentrega", "cliente", "ciudad", "tienda"
         
     pre_df_ent = df
 
@@ -169,7 +171,7 @@ def unionFinal(df, fecha_inicial, fecha_final, selected_ubicaciones) -> DataFram
     # lista_CPs = entregas_df.select('Código_postal').rdd.flatMap(lambda x: x).collect()
 
     entregas_df = histMuebles(df, fecha_inicial, fecha_final, selected_ubicaciones)       # 1
-    print("\n\nYA PROCESÓ ENTREGAS MUEBLES!!!!\n\n")
+    # print("\n\nYA PROCESÓ ENTREGAS MUEBLES!!!!\n\n")
     
     cnomina_df, cedis_dictio, clusters_df, rutas_df, pesos_codigosM_df, hist_cps_norm = _desencurtir()
     
@@ -199,22 +201,209 @@ def unionFinal(df, fecha_inicial, fecha_final, selected_ubicaciones) -> DataFram
         
     final_df.drop(columns = ["has_hist_ce", "has_cluster_ce", "IS_RAC_Izt"], inplace= True)
     
-    print("\nLa unión final ha finalizado\n")
+    # print("\nLa unión final ha finalizado\n")
 
     return final_df
 
-def resumenClusters(df: pd.DataFrame) -> pd.DataFrame:
+def tablasAggregadas(df: pd.DataFrame) -> pd.DataFrame:
 
     print("\nYa entró a la función\n")
 
-    print(df.columns)
 
     # agg_df = df.groupby('Cluster').sum()
 
-    agg_df = df.groupby('Cluster').agg({'Cluster': 'count'})
+    # agg_df = df.groupby('Cluster').agg({'Cluster': 'count'})
+
+    agg_df = df.groupby('Cluster').size().reset_index(name='Count')    
+    
+    # print(RED + "\nEstoy en la función que crea la función agregada\n" + RESET)
 
 
-    return agg_df
+    # agg_df =df.groupby(['NombreCEDIS', 'Cluster', 'jaula'])['Cluster'].count()
+
+    # agg_df =df.groupby(['NombreCEDIS', 'Cluster', 'jaula'])['Cluster'].size().reset_index(name='Count')
+
+    agg_cluster_df = df.groupby(['NombreCEDIS', 'Cluster'])['Cluster'].size() \
+                        .reset_index(name='Count') \
+                        .rename(columns={'Count': 'Total'})
+    
+    agg_jaula_df = df.groupby(['NombreCEDIS', 'jaula'])['jaula'].size() \
+                        .reset_index(name='Count') \
+                        .rename(columns={'jaula': 'Jaula', 'Count': 'Total' })
+        
+
+
+    return agg_cluster_df, agg_jaula_df
+
+def filtroVarios(df, cedis, cluster, fecha = None, jaula = None, rac = None, tipo = None) -> list:
+    """Genera las opciones para 4 de los filtros secundarios.
+    El df_proc ya tiene los filtros primarios de cedis y fecha
+    cedis y cluster son obligatorios, los demás no
+    """
+    if cedis is not None:
+        if cedis.startswith("Tod"):
+            code_Cedis =  '( df["NombreCEDIS"].isin(df["NombreCEDIS"].unique().tolist() ) )'
+        else:
+            code_Cedis =  '( df["NombreCEDIS"] == cedis )'
+
+    if cluster is not None:
+        if cluster.startswith("Tod"):
+            code_Cluster = '( df["Cluster"].isin(df["Cluster"].unique().tolist() ) )'
+        else:
+            code_Cluster = '( df["Cluster"] == cluster )'
+    
+    if fecha is not None:
+        try:
+            fecha_tiempo = datetime.strptime(fecha, "%Y-%m-%d %H:%M:%S")
+            code_fecha = '( df["fechaenrutada"] == fecha_tiempo )'
+        except:
+            code_fecha = '( df["fechaenrutada"].isin(df["fechaenrutada"].unique().tolist() ) )'
+
+    # (4)
+    if jaula is not None:
+        if jaula.startswith("Tod"):
+                code_jaula = '( df["jaula"].isin(df["jaula"].unique().tolist() ) )'
+        else:
+            code_jaula = '( df["jaula"] == jaula )'
+
+    # (5)
+    if rac is not None:
+        if rac.startswith("Tod"):
+            code_rac = '( df["IS_RAC"].isin(df["IS_RAC"].unique().tolist() ) )'
+        else:
+            code_rac = '( df["IS_RAC"] == rac )'
+
+
+
+
+    match tipo:
+        case "fecha":
+            codeTodo ="df[ " + \
+                code_Cedis + " & " + \
+                code_Cluster + \
+            "]"
+
+            saulen = "fechaenrutada"
+
+        case "jaula":
+            codeTodo ="df[ " + \
+                code_Cedis + " & " + \
+                code_Cluster  + " & " + \
+                code_fecha + \
+                    "]" 
+            saulen = "jaula" 
+            
+        case "rac":
+            codeTodo ="df[ " + \
+                code_Cedis + " & " + \
+                code_Cluster  + " & " + \
+                code_fecha  + " & " + \
+                code_jaula + \
+                    "]" 
+            saulen = "IS_RAC" 
+
+        case "cobertura":
+            codeTodo ="df[ " + \
+                code_Cedis + " & " + \
+                code_Cluster  + " & " + \
+                code_fecha  + " & " + \
+                code_jaula + " & " + \
+                code_rac + \
+                "]" 
+            saulen = "COBERTURA_CE" 
+        case _:
+            return "Unknown Status"  
+           
+        
+    df_filtrado = eval(codeTodo)
+
+    listaFinal= df_filtrado[saulen].unique().tolist()    
+
+    return listaFinal
+
+def segundoFiltrado(df, cedis, cluster, fecha, jaula, rac, cobertura)  -> pd.DataFrame :
+    """Genera una string ad hoc para hacer el segundo filtrado y genera un nuevo dataframe evaluando esa string, porque debía de tener alguna forma de poder manejar cuando es sólo 1 opción o cuando son todas las opciones...
+    El df_proc ya tiene los filtros primarios de cedis y fecha"""   
+
+    # (1)
+    if cedis.startswith("Tod"):
+        code_Cedis =  '( df["NombreCEDIS"].isin(df["NombreCEDIS"].unique().tolist() ) )'
+    else:
+        code_Cedis =  '( df["NombreCEDIS"] == cedis )'
+
+    # (2)
+    if cluster.startswith("Tod"):
+        code_Cluster = '( df["Cluster"].isin(df["Cluster"].unique().tolist() ) )'
+    else:
+        code_Cluster = '( df["Cluster"] == cluster )'
+
+    # (3)
+        # bloque de código para la fecdha porque viene como string pero hay que pasarla a tiempo
+    try:
+        fecha_tiempo = datetime.strptime(fecha, "%Y-%m-%d %H:%M:%S")
+        code_fecha = '( df["fechaenrutada"] == fecha_tiempo )'
+    except:
+        code_fecha = '( df["fechaenrutada"].isin(df["fechaenrutada"].unique().tolist() ) )'
+
+    # (4)    
+    if jaula.startswith("Tod"):
+            code_jaula = '( df["jaula"].isin(df["jaula"].unique().tolist() ) )'
+    else:
+        code_jaula = '( df["jaula"] == jaula )'
+
+    # (5) 
+    if isinstance(rac, str):
+        if rac.startswith("Tod"):
+            
+            code_rac = '( df["IS_RAC"].isin(df["IS_RAC"].unique().tolist() ) )'
+    else:        
+        print(PINK + f"Estamos dentro del else: {rac}, tipo de dato: {type(rac)} " + RESET)
+
+        code_rac = '( df["IS_RAC"] == rac )'
+
+    # (6)
+    if cobertura.startswith("Tod"):
+        code_cober = '( df["COBERTURA_CE"].isin(df["COBERTURA_CE"].unique().tolist() ) )'
+    else:
+        code_cober = '( df["COBERTURA_CE"] == cobertura )'
+    
+
+        # df[
+        #     (df["NombreCEDIS"] == cedis_selected) &
+        #     (df['Cluster'] == cluster_selected) &
+        #     (df['fechaenrutada'] == fecha_selected) &
+        #     (df['jaula'] == jaula_selected) &
+        #     (df['IS_RAC'] == int(rac_selected))
+        # ]
+
+    codeTodo ="df[ " + \
+        code_Cedis + " & " + \
+        code_Cluster  + " & " + \
+        code_fecha  + " & " + \
+        code_jaula  + " & " + \
+        code_rac  + " & " + \
+        code_cober  + \
+    "]"
+
+    # print("\n\n", codeTodo, "\n\n")
+        
+    df_filtrado = eval(codeTodo)
+
+
+    return df_filtrado
+    
+
+
+def saveResultMem(df: pd.DataFrame):
+    """Guarda el resultado en memoria para facilitar la descarga de archivos"""
+
+    # Guardar resultado en memoria
+    buffer = BytesIO()
+    df.to_csv(buffer, index=False)
+    buffer.seek(0)
+
+    return buffer
+
 
 
 def pivoteVal(df, fecha = None):
@@ -358,8 +547,6 @@ if __name__ == "__main__":
     # print(f"\n\n\n\n\n{formato}\n\n\n\n\n")
 
     # df = histMuebles(archivo)
-
-    # pprint(df.columns)
 
     # unionFinal(df)
 

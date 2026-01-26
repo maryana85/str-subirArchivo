@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import plotly.express as px
 from io import BytesIO
-from utils.funcionesV4 import histMuebles, unionFinal, detectarFormatoFecha, pivoteVal, pivoteVal_2, leerArchivo, nombreCEDIS, tablasAggregadas, saveResultMem, segundoFiltrado, filtroVarios
+from utils.funcionesV5 import histMuebles, unionFinal, detectarFormatoFecha, leerArchivo, nombreCEDIS, tablasAggregadas, saveResultMem, segundoFiltrado, filtroVarios
 
 
 # Esta es una versión de prueba, con las modificaciones de la versión del proceso en dónde ya se incluye la parte de centros de nómina y los cambios a los catálogos iniciales (rutas) ...
@@ -39,12 +39,21 @@ class TablaFinal:
         # Auto-Run methods
         self._TotalFilas()
         self._EntregasRAC()
-        self._EntregasNoRAC()
+        self._EntregasNoRAC()        
         self.prtjRAC = f"{(self.entregasRAC / self.totalFilas):.0%}"
         self.prtjNoRAC = f"{(self.entregasNoRAC / self.totalFilas):.0%}"
-
-        
-
+        # self.totalHasClusterCE = self.df['has_cluster_ce'].sum()
+        # self.totalHasHistCE = self.df['has_hist_ce'].sum()
+        # self.totalCPs = len(self.df['Código_postal'].unique().tolist())
+        # self.israc_cero = len(self.df[self.df['IS_RAC'] == 0])
+        # self.israc_uno =len(self.df[self.df['IS_RAC'] == 1])
+        # self.totalConCobertura = len(self.df[self.df['COBERTURA_CE'] == "CON_COBERTURA"])
+        # self.totalSinCobertura = len(self.df[self.df['COBERTURA_CE'] == "SIN_COBERTURA"])
+        # self.totalNORAC = len(self.df[self.df['COBERTURA_CE'] == "NORAC"])
+        # self.totalCon_RAC = len(self.df[self.df['CON_RAC'] == "RAC"])        
+        # self.totalIs_RAC_Izt = len(self.df[self.df['IS_RAC_Izt'] == 1])
+        # self.valoresIs_RAC_Izt = self.df['IS_RAC_Izt'].unique().tolist()
+        # self.tieneR = self.df['TieneR'].unique().tolist()
 
 
         self.__class__._initialized = True
@@ -57,8 +66,10 @@ class TablaFinal:
 
     def _EntregasNoRAC(self):
         self.entregasNoRAC = len( self.df[ self.df['IS_RAC'] == 0 ] )
-        
 
+
+
+        
 
 # ✅ Expected columns (in any order)
 EXPECTED_COLUMNS = {
@@ -385,14 +396,33 @@ with tab2:
                             column_config = {'fechaenrutada': st.column_config.DateColumn( format="DD-MM-YYYY"),
                                              'fecha': st.column_config.DateColumn( format="DD-MM-YYYY"),
                                              'Fecha_New': st.column_config.DateColumn( format="DD-MM-YYYY") ,
-                                             'Fecha_en_Ruta_New': st.column_config.DateColumn( format="DD-MM-YYYY")                       
+                                             'Fecha_en_Ruta_New': st.column_config.DateColumn( format="DD-MM-YYYY")
                             },
                             column_order=['tipo', 'folio', 'fecha', 'codigo', "articulo", "marca", "modelo", 'zona', 'jaula', 'ruta', 'fechaenrutada', 'ubicacionactual', 'NombreCEDIS', 'Fecha_New', 'Fecha_en_Ruta_New', 'IS_RAC', 'ID_RUTA', 'DCF', 'Seccion', 'Código_postal', 'Cluster', 'has_cluster_ce', 'has_hist_ce', 'COBERTURA_CE']
                             )
                 
                 columnas = st.columns(2)
                 with columnas[0]:
-                    st.write(f"Total filas = **{len(df_proc)}**")                
+                    st.write(f"Total filas = **{len(df_proc)}**")  
+                    # st.write(f"Has Cluster CE = {t.totalHasClusterCE}")
+                    # st.write(f"Has Hist CE = {t.totalHasHistCE}")
+                    # st.write(f"CP's diferentes = {t.totalCPs}")
+                    # st.write("")
+                    # st.write(f"con RAC = {t.totalCon_RAC}")
+                    # st.write("")                    
+                    # st.write(f"IS RAC Izt = {t.totalIs_RAC_Izt}")
+                    # st.write(f"Valores en IS RAC Izt = {t.valoresIs_RAC_Izt}")
+                    # st.write(f"Valores con R en Jaula = {t.tieneR}")
+
+                    # st.write("")
+                    # st.write(f"IS_RAC 0 = {t.israc_cero}")
+                    # st.write(f"IS_RAC 1 = {t.israc_uno}")
+                    # st.write("")
+                    # st.write(f"Con Cobertura = {t.totalConCobertura}")
+                    # st.write(f"Sin Cobertura = {t.totalSinCobertura}")
+                    # st.write(f"NORAC = {t.totalNORAC}")
+                    
+                    
 
                 # Botón de descarga
                 with columnas[1]:
@@ -413,55 +443,41 @@ with tab2:
 
                 with colin1:
                     # ----------------- 1° Filtro ---------------------
-                    cedis_selected = st.selectbox("CEDIS", options =  ["Todos"] + selected_ubicaciones,  key="ID5") # opción de todas
-    
+                    cedis_selected = st.multiselect("CEDIS", options = selected_ubicaciones,  key="ID5", default = selected_ubicaciones) # opción de todas   
                   
                     # opciones_cluster= sorted(df_proc[df_proc["NombreCEDIS"] == cedis_selected]["Cluster"].unique().tolist())
-
-                    if cedis_selected == "Todos":    
-                        opciones_cluster = sorted(
-                            df_proc[
-                                (df_proc["NombreCEDIS"].isin(selected_ubicaciones)) &
-                                (df_proc['fechaenrutada'].dt.date >= fecha_inicial) & 
-                                (df_proc['fechaenrutada'].dt.date <= fecha_final)
-                                ]["Cluster"].unique().tolist())
-
-                    else:                        
-                        opciones_cluster = sorted(
-                            df_proc[
-                                (df_proc["NombreCEDIS"] == cedis_selected) &
-                                (df_proc['fechaenrutada'].dt.date >= fecha_inicial) & 
-                                (df_proc['fechaenrutada'].dt.date <= fecha_final)
-                                ]["Cluster"].unique().tolist())
+                                          
+                    opciones_cluster = sorted(
+                        df_proc[
+                            (df_proc["NombreCEDIS"].isin(cedis_selected)) &
+                            (df_proc['fechaenrutada'].dt.date >= fecha_inicial) & 
+                            (df_proc['fechaenrutada'].dt.date <= fecha_final)
+                            ]["Cluster"].unique().tolist())
                         
                     # df_proc ya está filtrado con los filtros primarios, hay que quitar eso ↑
 
                     # (2°) Filtro 
-                    cluster_selected = st.selectbox("Clusters", options = ["Todos"] + opciones_cluster,  key="ID4") # en este filtro que sólo se pueda escoger 1 cluster 
+                    cluster_selected = st.multiselect("Clusters", options =  opciones_cluster,  key="ID4", default = opciones_cluster) # en este filtro que sólo se pueda escoger 1 cluster 
                     
                     opciones_fecha = filtroVarios(df_proc, cedis_selected, cluster_selected, tipo = "fecha")
 
                     # (3°) filtro
-                    fecha_selected = st.selectbox("Fecha Enrutada", options = ["Todas"] +       opciones_fecha ,  key="ID6") # fecha en específico o todas
+                    fecha_selected = st.multiselect("Fecha Enrutada", options = opciones_fecha ,  key="ID6", default = opciones_fecha) # fecha en específico o todas
 
                     opciones_jaula = filtroVarios(df_proc, cedis_selected, cluster_selected, fecha_selected, tipo = "jaula")
 
-
                     # (4°) filtro
-                    jaula_selected = st.selectbox("Jaula", options = ["Todas"] + opciones_jaula,  key="ID7") 
+                    jaula_selected = st.multiselect("Jaula", options =  opciones_jaula,  key="ID7", default= opciones_jaula) 
 
                     opciones_RAC = filtroVarios(df_proc, cedis_selected, cluster_selected, fecha_selected, jaula_selected, tipo = "rac")
-
                     
                     # (5°) filtro
-                    rac_selected = st.selectbox("RAC", options = ["Todas"] + opciones_RAC ,  key="ID8")
+                    rac_selected = st.multiselect("RAC", options = opciones_RAC ,  key="ID8", default= opciones_RAC)
                     
-                    opciones_Cobertura = filtroVarios(df_proc, cedis_selected, cluster_selected, fecha_selected, jaula_selected, str(rac_selected), tipo = "cobertura")
+                    opciones_Cobertura = filtroVarios(df_proc, cedis_selected, cluster_selected, fecha_selected, jaula_selected, rac_selected, tipo = "cobertura")
 
                     # (6°) filtro
-                    # cobertura_selected = st.selectbox("Cobertura", options = ["Todas"] + df_proc['COBERTURA_CE'].unique().tolist(),  key="ID9")
-
-                    cobertura_selected = st.selectbox("Cobertura", options = ["Todas"] + opciones_Cobertura,  key="ID9")
+                    cobertura_selected = st.multiselect("Cobertura", options = opciones_Cobertura,  key="ID9", default= opciones_Cobertura)
 
                 with colin3:
                     st.write("")
@@ -487,18 +503,27 @@ with tab2:
                     columnas = st.columns([3, 5])
 
                     with columnas[0]:                
-                        st.dataframe(aggCluster_df,
-                                    width = 450)
+                        st.dataframe(aggCluster_df.style \
+                                    .set_properties(subset=['Total'],**{'font-weight': 'bold'}),
+                                    width = 450,
+                            column_config = {'CON_COBERTURA': st.column_config.NumberColumn(format="localized"),
+                                "NORAC": st.column_config.NumberColumn(format="localized"),
+                                "SIN_COBERTURA": st.column_config.NumberColumn(format="localized"),
+                                "Total": st.column_config.NumberColumn(format="localized"),
+                                },
+                            column_order = ("CON_COBERTURA", "SIN_COBERTURA", "NORAC", "Total")
+                            )
                         with st.container(horizontal= True, horizontal_alignment="right"):                     
                             st.download_button(
                                 label="⬇️ Descargar tabla de Resultados 1 (tabla_Clusters_agg.csv)",
-                                data= saveResultMem(aggCluster_df),
+                                data= saveResultMem(aggCluster_df.reset_index()),
                                 file_name="tabla_Clusters_agg.csv",
                                 mime="text/csv",
                             )
 
                     with columnas[1]:
-                        fig_C = px.pie(aggCluster_df, values= 'Total', names='Cluster',
+                        # hay que resetear el dataframe de aggClusters y borrar la última fila de Totales para poder graficar
+                        fig_C = px.pie(aggCluster_df.reset_index().iloc[:-1], values= 'Total', names='Cluster',
                                         title=f'Gráfico × Clusters',
                                         height=450, width=300)
                         fig_C.update_layout(margin=dict(l=20, r=20, t=30, b=0),)
@@ -511,23 +536,33 @@ with tab2:
                     columnas = st.columns([3, 5])
 
                     with columnas[0]:
-                        st.dataframe(aggJaula_df,
-                                     width = 450)
+                        st.dataframe(aggJaula_df.style \
+                                    .set_properties(subset=['Total'],**{'font-weight': 'bold'}),
+                                     width = 450,
+                            column_config = {
+                                'CON_COBERTURA': st.column_config.NumberColumn(format="localized"),
+                                "NORAC": st.column_config.NumberColumn(format="localized"),
+                                "SIN_COBERTURA": st.column_config.NumberColumn(format="localized"),
+                                "Total": st.column_config.NumberColumn(format="localized"),
+                                },
+                            column_order = ("CON_COBERTURA", "SIN_COBERTURA", "NORAC",  "Total")
+                                )
                         with st.container(horizontal= True, horizontal_alignment="right"):                     
                             st.download_button(
                                 label="⬇️ Descargar tabla de Resultados 2 (tabla_Jaula_agg.csv)",
-                                data= saveResultMem(aggJaula_df),
+                                data= saveResultMem(aggJaula_df.reset_index()),
                                 file_name="tabla_Jaula_agg.csv",
                                 mime="text/csv",
                             )
                     with columnas[1]:
-                        # fig_J = px.pie(aggJaula_df, values= 'Total', names='Jaula',
-                        #                 title=f'Gráfico × Jaulas',
-                        #                 height=450, width=300)
-
-                        fig_J = px.bar(aggJaula_df, y = 'Total', x ='Jaula',
+                        fig_J = px.pie(aggJaula_df.reset_index().iloc[:-1], values= 'Total', names='Jaula',
                                         title=f'Gráfico × Jaulas',
-                                        height=450, width=300, ) # color = 'Jaula'
+                                        height=450, width=300)
+
+                        # fig_J = px.bar(aggJaula_df.reset_index().iloc[:-1], y = 'Total', x ='Jaula',
+                        #                 title=f'Gráfico × Jaulas',
+                        #                 height=450, width=300, ) # color = 'Jaula'
+
                         fig_J.update_layout(margin=dict(l=20, r=20, t=30, b=0),)
                         st.plotly_chart(fig_J, use_container_width=True)
 
